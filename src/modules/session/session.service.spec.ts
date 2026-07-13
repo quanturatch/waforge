@@ -77,6 +77,16 @@ describe('SessionService', () => {
         raw: undefined,
       }),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
+      // Used by getChatsFromMessageStore when the live engine is missing/broken.
+      createQueryBuilder: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      }),
     };
 
     dataSource = {
@@ -2329,6 +2339,32 @@ describe('SessionService', () => {
       (repository.findOne as jest.Mock).mockResolvedValue(session);
 
       await expect(service.getChats('sess-uuid-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('falls back to message-store chats when engine.getChats fails', async () => {
+      const session = createMockSession();
+      (repository.findOne as jest.Mock).mockResolvedValue(session);
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      await service.start('sess-uuid-1');
+
+      mockEngine.getChats.mockRejectedValue(new Error("Attempted to use detached Frame 'ABC'"));
+      (messageRepository.createQueryBuilder as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          { chatId: 'alice@c.us', chatName: 'Alice', timestamp: 1700000001 },
+          { chatId: '120363@g.us', chatName: 'Team', timestamp: 1700000000 },
+        ]),
+      });
+
+      const result = await service.getChats('sess-uuid-1');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({ id: 'alice@c.us', name: 'Alice', isGroup: false });
+      expect(result[1]).toMatchObject({ id: '120363@g.us', isGroup: true });
     });
   });
 
