@@ -1,7 +1,8 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   MessageSquare,
   Send,
@@ -15,9 +16,11 @@ import {
   Plus,
   ArrowRight,
   Radio,
+  RefreshCw,
 } from 'lucide-react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
+  queryKeys,
   useSessionsQuery,
   useSessionStatsQuery,
   useWebhooksQuery,
@@ -31,18 +34,97 @@ import './Dashboard.css';
 // main/login bundle and only ships when the dashboard actually renders.
 const DashboardCharts = lazy(() => import('../components/DashboardCharts').then(m => ({ default: m.DashboardCharts })));
 
+const AUTO_REFRESH_MS = 2 * 60 * 1000;
+const AUTO_REFRESH_STORAGE_KEY = 'waforge_dashboard_auto_refresh';
+
+function readAutoRefreshPref(): boolean {
+  try {
+    return localStorage.getItem(AUTO_REFRESH_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function Dashboard() {
   const { t } = useTranslation();
   useDocumentTitle(t('dashboard.title'));
   const navigate = useNavigate();
-  const { data: sessions = [], isLoading: loadingSessions, error: sessionsError } = useSessionsQuery();
-  const { data: stats } = useSessionStatsQuery();
-  const { data: webhooks = [] } = useWebhooksQuery();
+  const queryClient = useQueryClient();
+  const {
+    data: sessions = [],
+    isLoading: loadingSessions,
+    error: sessionsError,
+    dataUpdatedAt: sessionsUpdatedAt,
+  } = useSessionsQuery();
+  const { data: stats, dataUpdatedAt: statsUpdatedAt } = useSessionStatsQuery();
+  const { data: webhooks = [], dataUpdatedAt: webhooksUpdatedAt } = useWebhooksQuery();
   // /stats/overview is ADMIN-only; for a non-admin key it 403s → overview stays undefined and the
   // message cards fall back to '—' without breaking the (un-gated) session cards.
-  const { data: overview } = useStatsOverviewQuery();
+  const { data: overview, dataUpdatedAt: overviewUpdatedAt } = useStatsOverviewQuery();
   const stopMutation = useStopSessionMutation();
   const [disconnectConfirm, setDisconnectConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(readAutoRefreshPref);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  const refreshDashboard = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessions });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sessionStats });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.statsOverview });
+    // Prefix match: all periods for message analytics charts
+    void queryClient.invalidateQueries({ queryKey: ['stats', 'messages'] });
+  }, [queryClient]);
+
+  // Persist preference
+  useEffect(() => {
+    try {
+      localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, autoRefresh ? '1' : '0');
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [autoRefresh]);
+
+  // Poll every 2 minutes when enabled; pause while disconnect modal is open
+  useEffect(() => {
+    if (!autoRefresh || disconnectConfirm) return;
+    const id = window.setInterval(() => {
+      refreshDashboard();
+    }, AUTO_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [autoRefresh, disconnectConfirm, refreshDashboard]);
+
+  // Soft clock for "Updated Xm ago" label (every 15s)
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, [autoRefresh]);
+
+  const lastUpdatedAt = useMemo(
+    () => Math.max(sessionsUpdatedAt || 0, statsUpdatedAt || 0, webhooksUpdatedAt || 0, overviewUpdatedAt || 0),
+    [sessionsUpdatedAt, statsUpdatedAt, webhooksUpdatedAt, overviewUpdatedAt],
+  );
+
+  const lastUpdatedLabel = useMemo(() => {
+    if (!lastUpdatedAt) return t('dashboard.autoRefresh.waiting', { defaultValue: 'Waiting for data…' });
+    const secs = Math.max(0, Math.floor((nowTick - lastUpdatedAt) / 1000));
+    if (secs < 15) return t('dashboard.autoRefresh.justNow', { defaultValue: 'Updated just now' });
+    if (secs < 60) return t('dashboard.autoRefresh.secsAgo', { defaultValue: 'Updated {{n}}s ago', n: secs });
+    const mins = Math.floor(secs / 60);
+    return t('dashboard.autoRefresh.minsAgo', { defaultValue: 'Updated {{n}}m ago', n: mins });
+  }, [lastUpdatedAt, nowTick, t]);
+
+  const toggleAutoRefresh = () => {
+    setAutoRefresh(prev => {
+      const next = !prev;
+      if (next) {
+        // Immediate refresh when turning on so the board is current
+        refreshDashboard();
+        setNowTick(Date.now());
+      }
+      return next;
+    });
+  };
   const messagesToday = overview ? overview.messages.today.sent + overview.messages.today.received : null;
   const totalMessages = overview ? overview.messages.sent + overview.messages.received : null;
   const loading = loadingSessions;
@@ -178,6 +260,32 @@ export function Dashboard() {
                 })
               : t('common.disconnected', { defaultValue: 'Disconnected' })}
           </span>
+        }
+        actions={
+          <div className="auto-refresh">
+            <span className="auto-refresh-meta" title={lastUpdatedLabel}>
+              {autoRefresh ? lastUpdatedLabel : t('dashboard.autoRefresh.offHint', { defaultValue: 'Manual refresh only' })}
+            </span>
+            <button
+              type="button"
+              className={`auto-refresh-toggle ${autoRefresh ? 'on' : 'off'}`}
+              role="switch"
+              aria-checked={autoRefresh}
+              aria-label={t('dashboard.autoRefresh.aria', {
+                defaultValue: 'Auto-refresh dashboard every 2 minutes',
+              })}
+              onClick={toggleAutoRefresh}
+            >
+              <RefreshCw size={14} className={autoRefresh ? 'spin-slow' : undefined} aria-hidden />
+              <span className="auto-refresh-label">
+                {t('dashboard.autoRefresh.label', { defaultValue: 'Auto-refresh' })}
+              </span>
+              <span className="auto-refresh-interval">2 min</span>
+              <span className="auto-refresh-switch" aria-hidden>
+                <span className="auto-refresh-knob" />
+              </span>
+            </button>
+          </div>
         }
       />
 

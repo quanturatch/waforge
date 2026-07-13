@@ -35,6 +35,113 @@
   margin-bottom: 1.75rem;
 }
 
+/* —— Auto-refresh control —— */
+.dashboard .auto-refresh {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.dashboard .auto-refresh-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dashboard .auto-refresh-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.65rem 0.4rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard .auto-refresh-toggle:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  color: var(--text-primary);
+}
+
+.dashboard .auto-refresh-toggle.on {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: var(--primary-soft);
+}
+
+.dashboard .auto-refresh-label {
+  white-space: nowrap;
+}
+
+.dashboard .auto-refresh-interval {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bg-light);
+}
+
+.dashboard .auto-refresh-toggle.on .auto-refresh-interval {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--bg-white));
+}
+
+.dashboard .auto-refresh-switch {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.dashboard .auto-refresh-toggle.on .auto-refresh-switch {
+  background: var(--primary);
+}
+
+.dashboard .auto-refresh-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease;
+}
+
+.dashboard .auto-refresh-toggle.on .auto-refresh-knob {
+  transform: translateX(14px);
+}
+
+.dashboard .auto-refresh-toggle .spin-slow {
+  animation: dashboard-spin 2.4s linear infinite;
+}
+
+@keyframes dashboard-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .dashboard .header-title {
   display: flex;
   align-items: center;

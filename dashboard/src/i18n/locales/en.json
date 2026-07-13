@@ -158,6 +158,15 @@
     "badge": {
       "online": "{{count}} online"
     },
+    "autoRefresh": {
+      "label": "Auto-refresh",
+      "aria": "Auto-refresh dashboard every 2 minutes",
+      "offHint": "Manual refresh only",
+      "waiting": "Waiting for data…",
+      "justNow": "Updated just now",
+      "secsAgo": "Updated {{n}}s ago",
+      "minsAgo": "Updated {{n}}m ago"
+    },
     "stats": {
       "activeSessions": "Connected sessions",
       "messagesToday": "Messages today",
