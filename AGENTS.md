@@ -4,7 +4,7 @@ This file scopes how automated agents (Grok, Claude, Cursor, Copilot, etc.) shou
 
 ## Product identity
 
-- **Product name:** WaForge (not OpenWA, not Quantura-as-product).
+- **Product name:** WaForge (not WaForge, not Quantura-as-product).
 - **Company:** Quantura Technologies — https://www.quanturatech.com
 - **Description:** AI-powered self-hosted WhatsApp API gateway (REST, webhooks, MCP, dashboard, BYO LLM).
 - **License:** MIT
@@ -19,13 +19,13 @@ Always operate from the **WaForge** project root:
 D:\quantura_projects\WaForge
 ```
 
-Do not assume a sibling OpenWA path. Prefer absolute paths under this root when shelling.
+Do not assume a sibling WaForge path. Prefer absolute paths under this root when shelling.
 
 ## Non-negotiables
 
 1. **Do not invent product claims.** Features must match code, `.env.example`, or `docs/`.
 2. **Never commit secrets:** `.env`, `data/`, session folders, `.api-key`, real API keys, `node_modules`, local SQLite DBs.
-3. **Branding:** user-facing strings and README say **WaForge**. Company footer may say Quantura Technologies. Avoid reintroducing OpenWA as the product name in new UI/docs (legacy assets may still exist under `docs/logo/` / `openwa_*` filenames).
+3. **Branding:** user-facing strings and README say **WaForge**. Company footer may say Quantura Technologies. Avoid reintroducing WaForge as the product name in new UI/docs (legacy assets may still exist under `docs/logo/` / `WaForge_*` filenames).
 4. **Do not expand scope** beyond the user request. Prefer editing existing files over creating docs.
 5. **Security:** no exploit PoCs, no attacking systems. Local vulnerability fixes only when asked.
 
@@ -118,5 +118,5 @@ Dashboard login posts to `/api/auth/validate` with header `X-API-Key`.
 
 - Force-pushing to shared remotes
 - Committing `data/sessions` or production keys
-- Renaming the product back to OpenWA
+- Renaming the product back to WaForge
 - Broad refactors unrelated to the task
