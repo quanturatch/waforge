@@ -1618,8 +1618,25 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   async getChatHistory(chatId: string, limit: number = 50, includeMedia: boolean = false): Promise<IncomingMessage[]> {
     this.ensureReady();
-    const chat = await this.client!.getChatById(chatId);
-    const messages = await chat.fetchMessages({ limit });
+    let chat: Awaited<ReturnType<NonNullable<Client['getChatById']>>>;
+    let messages: Awaited<ReturnType<typeof chat.fetchMessages>>;
+    try {
+      chat = await this.client!.getChatById(chatId);
+      messages = await chat.fetchMessages({ limit });
+    } catch (error) {
+      if (isDetachedBrowserError(error)) {
+        this.logger.error(
+          'getChatHistory failed: WhatsApp Web browser frame is detached (session lost)',
+          error instanceof Error ? error.stack : String(error),
+        );
+        this.setStatus(EngineStatus.DISCONNECTED);
+        throw new EngineNotReadyError(
+          'WhatsApp browser session lost connection. Open Sessions and Start/Connect the session again.',
+        );
+      }
+      // Unknown chat / transient evaluate failure — typed 503 beats Nest's opaque 500 body.
+      throw error;
+    }
     const results: IncomingMessage[] = [];
     for (const msg of messages) {
       // Reuse the shared mapper so history messages carry the same author/contact

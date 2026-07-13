@@ -905,9 +905,16 @@ export function Chats() {
                       <span>{t('chats.loadingMessages')}</span>
                     </div>
                   ) : messagesError ? (
-                    <div className="messages-empty">
-                      <MessageSquare size={32} />
-                      <span>{t('chats.loadMessagesError')}</span>
+                    <div className="messages-empty messages-error">
+                      <AlertCircle size={32} />
+                      <span className="chats-list-error-title">{t('chats.loadMessagesError')}</span>
+                      <span className="chats-list-error-detail">
+                        {messagesError instanceof Error
+                          ? messagesError.message
+                          : t('chats.errors.sessionLostDesc', {
+                              defaultValue: 'Open Sessions and Start/Connect this WhatsApp account again.',
+                            })}
+                      </span>
                     </div>
                   ) : messages.length === 0 ? (
                     <div className="messages-empty">

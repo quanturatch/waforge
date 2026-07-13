@@ -447,6 +447,50 @@ export interface SearchResults {
 // API Client
 // =============================================================================
 
+/**
+ * Turn a Nest (or proxy) error JSON body into a single human-readable string for toasts / empty states.
+ * Handles message as string | string[] | nested object; never returns a JSON blob for the UI to show.
+ */
+export function formatApiErrorMessage(body: unknown, status: number): string {
+  if (body == null || typeof body !== 'object') {
+    return status ? `Request failed (HTTP ${status})` : 'Request failed';
+  }
+  const record = body as Record<string, unknown>;
+  const raw = record.message;
+
+  const asText = (value: unknown): string | null => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      // Some layers re-stringified the whole Nest body into message.
+      if (trimmed.startsWith('{') && trimmed.includes('statusCode')) {
+        try {
+          const inner = JSON.parse(trimmed) as Record<string, unknown>;
+          const nested = asText(inner.message);
+          if (nested) return nested;
+        } catch {
+          /* keep trimmed */
+        }
+      }
+      if (trimmed === 'Internal server error') {
+        return 'Something went wrong on the server. If this is Chats, try Start/Connect the session again.';
+      }
+      return trimmed;
+    }
+    if (Array.isArray(value)) {
+      const parts = value.map(v => (typeof v === 'string' ? v : String(v))).filter(Boolean);
+      return parts.length ? parts.join('; ') : null;
+    }
+    return null;
+  };
+
+  return (
+    asText(raw) ||
+    (typeof record.error === 'string' ? record.error : null) ||
+    `Request failed (HTTP ${status || 'error'})`
+  );
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
@@ -479,10 +523,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     // On a non-JSON body (e.g. a reverse-proxy 502/503 HTML page) fall through to `HTTP <status>`
     // rather than statusText: the status code is what the toast connection-lost de-dup matches on,
     // and statusText is empty over HTTP/2 anyway.
-    const error = await response.json().catch(() => ({}));
-    // Carry the HTTP status on the Error (message unchanged, so the toast de-dup still matches) so
-    // callers can tell apart a permission 403 from a real server 5xx instead of guessing from text.
-    const err = new Error(error.message || `HTTP ${response.status}`) as Error & { status?: number };
+    const errorBody = await response.json().catch(() => ({} as Record<string, unknown>));
+    // Carry the HTTP status on the Error so callers can tell 403 from 5xx. Always extract a plain
+    // string message — never put raw JSON objects into Error.message (the Chats UI was flashing
+    // `{ "statusCode": 500, "message": "Internal server error" }` when Nest returned opaque 500s).
+    const err = new Error(formatApiErrorMessage(errorBody, response.status)) as Error & { status?: number };
     err.status = response.status;
     throw err;
   }
@@ -510,8 +555,8 @@ async function requestText(endpoint: string): Promise<string> {
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `HTTP ${response.status}`);
+    const errorBody = await response.json().catch(() => ({} as Record<string, unknown>));
+    throw new Error(formatApiErrorMessage(errorBody, response.status));
   }
 
   return response.text();
