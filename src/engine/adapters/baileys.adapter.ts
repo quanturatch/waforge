@@ -1361,6 +1361,10 @@ export class BaileysAdapter implements IWhatsAppEngine {
         body,
         contentType,
         isPtt: normalized.audioMessage?.ptt === true,
+        // Animated GIFs arrive as videoMessage (sometimes imageMessage) with gifPlayback set.
+        isGif:
+          normalized.videoMessage?.gifPlayback === true ||
+          (normalized as { imageMessage?: { gifPlayback?: boolean } }).imageMessage?.gifPlayback === true,
         timestamp: this.toUnixSeconds(msg.messageTimestamp),
         pushName: msg.pushName ?? undefined,
         selfJid: this.normalizedSelfJid(),

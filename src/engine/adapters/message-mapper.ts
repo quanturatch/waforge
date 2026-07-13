@@ -3,14 +3,22 @@ import { IncomingMessage, MessageContact, MessageType } from '../interfaces/what
 /**
  * Map a whatsapp-web.js `MessageTypes` token to the engine-neutral {@link MessageType}, so no
  * consumer outside the adapter sees wwebjs-specific type strings. Notably `chat` -> `text` (aligning
- * incoming with the neutral types outgoing sends already use) and `ptt` -> `voice`. Anything not
- * mapped becomes `unknown`.
+ * incoming with the neutral types outgoing sends already use) and `ptt` -> `voice`.
+ *
+ * Animated GIFs are still reported by wwebjs as `video`/`image` with `isGif=true` — pass that flag
+ * so they surface as {@link MessageType} `gif` in stats and the dashboard donut.
  */
-export function mapWwebjsMessageType(raw: string): MessageType {
+export function mapWwebjsMessageType(raw: string, isGif = false): MessageType {
+  // GIF is a flag on image/video media in WhatsApp Web, not its own MessageTypes token.
+  if (isGif && (raw === 'video' || raw === 'image')) {
+    return 'gif';
+  }
+
   switch (raw) {
     case 'chat':
       return 'text';
     case 'image':
+    case 'album':
       return 'image';
     case 'video':
       return 'video';
@@ -19,6 +27,9 @@ export function mapWwebjsMessageType(raw: string): MessageType {
     case 'ptt':
       return 'voice';
     case 'document':
+    case 'order':
+    case 'product':
+    case 'payment':
       return 'document';
     case 'sticker':
       return 'sticker';
@@ -33,6 +44,19 @@ export function mapWwebjsMessageType(raw: string): MessageType {
       return 'poll';
     case 'revoked':
       return 'revoked';
+    // Interactive / list / button replies still carry readable text for operators & stats.
+    case 'list':
+    case 'list_response':
+    case 'buttons_response':
+    case 'interactive':
+    case 'template_button_reply':
+    case 'hsm':
+    case 'groups_v4_invite':
+    case 'native_flow':
+      return 'text';
+    case 'reaction':
+      // Reactions are not full message bodies; count as emoji when we only know the token.
+      return 'emoji';
     default:
       return 'unknown';
   }
@@ -51,6 +75,8 @@ export interface RawMessageFields {
   type: string;
   timestamp: number;
   fromMe: boolean;
+  /** WhatsApp animated GIF (reported as video/image media with this flag). */
+  isGif?: boolean;
   /** Set on group messages: the participant WID that actually sent the message. */
   author?: string;
   /** WIDs @mentioned in the message; whatsapp-web.js attaches this to every Message. */
@@ -74,7 +100,7 @@ export function buildIncomingMessageBase(msg: RawMessageFields): IncomingMessage
     to: msg.to,
     chatId,
     body: msg.body,
-    type: mapWwebjsMessageType(msg.type),
+    type: mapWwebjsMessageType(msg.type, Boolean(msg.isGif)),
     timestamp: msg.timestamp,
     fromMe: msg.fromMe,
     isGroup: chatId.endsWith('@g.us'),

@@ -10,7 +10,16 @@ import { DeliveryStatus, IncomingMessage, MessageType } from '../interfaces/what
  * intentionally not produced on this engine — unlike the wwjs adapter, which sources call detail
  * from the gated `getChatHistory` path.
  */
-export function mapBaileysMessageType(contentType: string | undefined, isPtt = false): MessageType {
+export function mapBaileysMessageType(
+  contentType: string | undefined,
+  isPtt = false,
+  isGif = false,
+): MessageType {
+  // Baileys marks animated GIFs as videoMessage with gifPlayback (or similar) set.
+  if (isGif && (contentType === 'videoMessage' || contentType === 'imageMessage')) {
+    return 'gif';
+  }
+
   switch (contentType) {
     case 'conversation':
     case 'extendedTextMessage':
@@ -37,6 +46,8 @@ export function mapBaileysMessageType(contentType: string | undefined, isPtt = f
     case 'pollCreationMessageV3':
       // Native polls; WhatsApp bumps the content key across versions, all map to the same neutral type.
       return 'poll';
+    case 'reactionMessage':
+      return 'emoji';
     case 'interactiveMessage':
     case 'buttonsMessage':
     case 'templateMessage':
@@ -141,6 +152,8 @@ export interface BaileysIncomingFields {
   contentType: string | undefined;
   /** `audioMessage.ptt === true` — distinguishes a voice note from an audio file. */
   isPtt?: boolean;
+  /** Animated GIF (Baileys: `videoMessage.gifPlayback` / similar). */
+  isGif?: boolean;
   timestamp: number;
   pushName?: string;
   /** The account's own normalized JID, for from/to on outgoing messages. */
@@ -182,7 +195,7 @@ export function buildIncomingMessageFromBaileys(
     to: fields.fromMe ? chatId : self,
     chatId,
     body: fields.body,
-    type: mapBaileysMessageType(fields.contentType, fields.isPtt),
+    type: mapBaileysMessageType(fields.contentType, fields.isPtt, Boolean(fields.isGif)),
     timestamp: fields.timestamp,
     fromMe: fields.fromMe,
     isGroup,

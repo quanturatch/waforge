@@ -25,21 +25,48 @@ const PERIODS: StatsPeriod[] = ['24h', '7d', '30d'];
 
 // Stable, distinct color per message type (recharts needs literal colors). Keyed by type name —
 // not array index — so two types can never share a color, and a slice keeps its color even when the
-// set of present types changes between requests. Covers every type mapMessageType() can emit.
+// set of present types changes between requests.
 const TYPE_COLORS: Record<string, string> = {
   text: '#0cadf3',
+  emoji: '#f59e0b',
   image: '#046c9a',
-  contact: '#56c3e1',
-  document: '#f59e0b',
-  audio: '#06b6d4',
-  voice: '#ec4899',
+  gif: '#a855f7',
   video: '#14b8a6',
   sticker: '#ef4444',
+  audio: '#06b6d4',
+  voice: '#ec4899',
+  document: '#6366f1',
   location: '#84cc16',
-  poll: '#6366f1',
+  contact: '#56c3e1',
+  poll: '#8b5cf6',
+  call: '#0ea5e9',
   revoked: '#f43f5e',
-  masked: '#8b5cf6',
+  masked: '#64748b',
   unknown: '#7a8484',
+};
+
+/** Friendly donut labels (backend stores machine keys). */
+const TYPE_LABELS: Record<string, string> = {
+  text: 'Text',
+  emoji: 'Emoji',
+  image: 'Image',
+  gif: 'GIF',
+  video: 'Video',
+  sticker: 'Sticker',
+  audio: 'Audio',
+  voice: 'Voice note',
+  document: 'Document',
+  location: 'Location',
+  contact: 'Contact',
+  poll: 'Poll',
+  call: 'Call',
+  revoked: 'Deleted',
+  masked: 'Masked',
+  unknown: 'Other',
+  // Legacy tokens that may still appear before server normalize:
+  chat: 'Text',
+  ptt: 'Voice note',
+  vcard: 'Contact',
 };
 
 const FALLBACK_COLORS = ['#0cadf3', '#56c3e1', '#046c9a', '#10b981', '#6366f1', '#eab308'];
@@ -48,6 +75,10 @@ function colorForType(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
   return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
+}
+
+function labelForType(name: string): string {
+  return TYPE_LABELS[name] ?? name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' ');
 }
 
 // '2026-06-24 14:00:00' (hour buckets) → '14:00'; '2026-06-24' (day buckets) → '06-24'.
@@ -133,13 +164,41 @@ export function DashboardCharts() {
     () => (data?.timeSeries ?? []).map(p => ({ ...p, label: formatTick(p.timestamp, period) })),
     [data?.timeSeries, period],
   );
-  const byType = useMemo(
-    () =>
-      Object.entries(data?.byType ?? {})
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value),
-    [data?.byType],
-  );
+  const byType = useMemo(() => {
+    // Prefer a stable category order for the main media/text types, then by volume.
+    const preferred = [
+      'text',
+      'emoji',
+      'image',
+      'gif',
+      'video',
+      'sticker',
+      'document',
+      'voice',
+      'audio',
+      'location',
+      'contact',
+      'poll',
+    ];
+    const rows = Object.entries(data?.byType ?? {})
+      .filter(([, value]) => value > 0)
+      .map(([type, value]) => ({
+        type,
+        name: labelForType(type),
+        value,
+      }));
+    rows.sort((a, b) => {
+      const ai = preferred.indexOf(a.type);
+      const bi = preferred.indexOf(b.type);
+      if (ai !== -1 || bi !== -1) {
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        if (ai !== bi) return ai - bi;
+      }
+      return b.value - a.value;
+    });
+    return rows;
+  }, [data?.byType]);
 
   const topChats: TopChatRow[] = useMemo(() => {
     const rows = (data?.topChats ?? []).slice(0, 8);
@@ -308,7 +367,7 @@ export function DashboardCharts() {
                       strokeWidth={2}
                     >
                       {byType.map(entry => (
-                        <Cell key={entry.name} fill={colorForType(entry.name)} />
+                        <Cell key={entry.type} fill={colorForType(entry.type)} />
                       ))}
                     </Pie>
                     <Tooltip content={<ChartTooltip />} />
@@ -319,9 +378,9 @@ export function DashboardCharts() {
                   <span className="pie-center-label">{t('dashboard.charts.messages')}</span>
                 </div>
                 <ul className="pie-legend">
-                  {byType.slice(0, 6).map(entry => (
-                    <li key={entry.name}>
-                      <span className="pie-legend-swatch" style={{ background: colorForType(entry.name) }} />
+                  {byType.map(entry => (
+                    <li key={entry.type}>
+                      <span className="pie-legend-swatch" style={{ background: colorForType(entry.type) }} />
                       <span className="pie-legend-name">{entry.name}</span>
                       <span className="pie-legend-value">{entry.value.toLocaleString()}</span>
                     </li>

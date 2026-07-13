@@ -38,6 +38,7 @@ import {
 import { createLogger } from '../../common/services/logger.service';
 import { ShutdownService } from '../../common/services/shutdown.service';
 import { EventsGateway } from '../events/events.gateway';
+import { isEmojiOnlyBody } from '../../common/utils/message-type-labels';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
 import {
@@ -805,6 +806,10 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
             const chatName = incoming.contact?.pushName ?? incoming.contact?.name ?? undefined;
 
+            // Classify short emoji-only texts for the analytics donut (Text vs Emoji).
+            const persistType =
+              incoming.type === 'text' && isEmojiOnlyBody(incoming.body) ? 'emoji' : incoming.type;
+
             const dbMessage = this.messageRepository.create({
               sessionId: id,
               waMessageId: incoming.id,
@@ -813,7 +818,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
               from: incoming.from,
               to: incoming.to,
               body: incoming.body,
-              type: incoming.type,
+              type: persistType,
               direction: incoming.fromMe ? MessageDirection.OUTGOING : MessageDirection.INCOMING,
               timestamp: incoming.timestamp,
               status: MessageStatus.SENT,

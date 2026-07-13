@@ -38,7 +38,14 @@ describe('mapBaileysMessageType (baileys content-type -> neutral MessageType)', 
     ['callLogMessage', false, 'unknown'],
   ])('maps %s (ptt=%s) -> %s', (raw, ptt, expected) => {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    expect(mapBaileysMessageType(raw as string | undefined, ptt as boolean)).toBe(expected);
+    expect(mapBaileysMessageType(raw as string | undefined, ptt as boolean, false)).toBe(expected);
+  });
+
+  it('maps gif-flagged videoMessage/imageMessage to gif', () => {
+    expect(mapBaileysMessageType('videoMessage', false, true)).toBe('gif');
+    expect(mapBaileysMessageType('imageMessage', false, true)).toBe('gif');
+    expect(mapBaileysMessageType('videoMessage', false, false)).toBe('video');
+    expect(mapBaileysMessageType('audioMessage', false, true)).toBe('audio'); // gif flag only for video/image
   });
 });
 
