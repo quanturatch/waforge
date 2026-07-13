@@ -6,6 +6,7 @@ import {
   isHttpUrl,
   isSupportedProxyUrl,
   isExecutionContextDestroyedError,
+  isDetachedBrowserError,
   buildProxyLaunchConfig,
   loadRemoteMedia,
   resolveAuthTimeoutMs,
@@ -110,6 +111,30 @@ describe('isExecutionContextDestroyedError (#708 — Puppeteer context loss duri
       expect(isExecutionContextDestroyedError(reason)).toBe(false);
     },
   );
+});
+
+describe('isDetachedBrowserError (getChats / live CDP page death)', () => {
+  it.each([
+    "Attempted to use detached Frame 'DD904F152F01896C2C1FF5961CCF49A1'.",
+    'Navigating frame was detached',
+    'Target closed',
+    'Session closed',
+    'Protocol error (Runtime.callFunctionOn): Target closed.',
+    'Execution context was destroyed',
+    'Cannot find context with specified id',
+  ])('matches %s', msg => {
+    expect(isDetachedBrowserError(new Error(msg))).toBe(true);
+    expect(isDetachedBrowserError(msg)).toBe(true);
+  });
+
+  it.each([
+    'Evaluation failed: TypeError: Cannot read properties of undefined',
+    'Navigation timeout of 30000 ms exceeded',
+    'Failed to launch the browser process',
+    '',
+  ])('does not match unrelated errors (%s)', msg => {
+    expect(isDetachedBrowserError(new Error(msg))).toBe(false);
+  });
 });
 
 describe('buildProxyLaunchConfig (#628 — proxy credentials must not go into --proxy-server)', () => {

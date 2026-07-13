@@ -96,6 +96,7 @@ export function Chats() {
   // Chats list
   const [chats, setChats] = useState<Chat[]>([]);
   const [loadingChats, setLoadingChats] = useState<boolean>(false);
+  const [chatsError, setChatsError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Selected chat & message history
@@ -164,6 +165,7 @@ export function Chats() {
       if (!sessionId) return;
       try {
         setLoadingChats(true);
+        setChatsError(null);
         const data = await sessionApi.getChats(sessionId);
         const sorted = [...data].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setChats(sorted);
@@ -175,14 +177,15 @@ export function Chats() {
             : t('chats.errors.loadChatsGeneric', { defaultValue: 'Could not load chats' });
         // 409 = browser session lost / not ready — guide the user to reconnect instead of raw JSON.
         if (status === 409) {
-          showErrorToast(
-            t('chats.errors.sessionLostTitle', { defaultValue: 'Session disconnected' }),
+          const detail =
             msg ||
-              t('chats.errors.sessionLostDesc', {
-                defaultValue: 'Open Sessions and Start/Connect this WhatsApp account again.',
-              }),
-          );
+            t('chats.errors.sessionLostDesc', {
+              defaultValue: 'Open Sessions and Start/Connect this WhatsApp account again.',
+            });
+          setChatsError(detail);
+          showErrorToast(t('chats.errors.sessionLostTitle', { defaultValue: 'Session disconnected' }), detail);
         } else {
+          setChatsError(msg);
           showErrorToast(t('chats.errors.loadChats'), msg);
         }
         setChats([]);
@@ -823,8 +826,18 @@ export function Chats() {
                   <span>{t('chats.loadingChats')}</span>
                 </div>
               ) : filteredChats.length === 0 ? (
-                <div className="chats-list-empty">
-                  <span>{t('chats.empty')}</span>
+                <div className={`chats-list-empty ${chatsError ? 'is-error' : ''}`}>
+                  {chatsError ? (
+                    <>
+                      <AlertCircle size={28} />
+                      <span className="chats-list-error-title">
+                        {t('chats.errors.loadChats', { defaultValue: 'Could not load chats' })}
+                      </span>
+                      <span className="chats-list-error-detail">{chatsError}</span>
+                    </>
+                  ) : (
+                    <span>{t('chats.empty')}</span>
+                  )}
                 </div>
               ) : (
                 filteredChats.map(chat => {

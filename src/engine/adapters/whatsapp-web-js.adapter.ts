@@ -1118,7 +1118,8 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   async getGroups(): Promise<Group[]> {
     this.ensureReady();
-    const chats = await this.client!.getChats();
+    // Same CDP surface as getChats — must use the guarded fetch (detached frame → 409).
+    const chats = await this.fetchClientChats();
 
     // Filter only group chats
     const groups = chats.filter(chat => chat.isGroup);
@@ -1896,20 +1897,21 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   /* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
 
-  async getChats(): Promise<ChatSummary[]> {
+  /**
+   * Call client.getChats() with recovery for a dead Puppeteer page.
+   * Detached frames used to escape as unhandled 500s on the dashboard Chats page.
+   */
+  private async fetchClientChats(): Promise<Awaited<ReturnType<NonNullable<Client['getChats']>>>> {
     this.ensureReady();
-    let chats: Awaited<ReturnType<NonNullable<typeof this.client>['getChats']>>;
     try {
-      chats = await this.client!.getChats();
+      return await this.client!.getChats();
     } catch (error) {
-      // Puppeteer "detached Frame" / target closed means the Chromium page is dead while we still
-      // thought the session was READY — surfaces as a raw 500 on /chats. Flip to disconnected and
-      // return a typed 409 so the dashboard can prompt reconnect instead of a blank JSON error.
       if (isDetachedBrowserError(error)) {
         this.logger.error(
-          'getChats failed: WhatsApp Web browser frame is detached (session lost)',
+          'WhatsApp Web browser frame is detached (session lost)',
           error instanceof Error ? error.stack : String(error),
         );
+        // Status change propagates via onStateChanged → session row DISCONNECTED + UI toast path.
         this.setStatus(EngineStatus.DISCONNECTED);
         throw new EngineNotReadyError(
           'WhatsApp browser session lost connection. Open Sessions and Start/Connect the session again.',
@@ -1917,7 +1919,10 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       }
       throw error;
     }
+  }
 
+  async getChats(): Promise<ChatSummary[]> {
+    const chats = await this.fetchClientChats();
     const summaries: ChatSummary[] = [];
     let skipped = 0;
 

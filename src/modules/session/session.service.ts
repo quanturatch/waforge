@@ -3,11 +3,14 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  HttpException,
+  ServiceUnavailableException,
   OnModuleDestroy,
   OnModuleInit,
   OnApplicationBootstrap,
   Optional,
 } from '@nestjs/common';
+
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull, DataSource, FindManyOptions } from 'typeorm';
@@ -1568,11 +1571,28 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
         sessionId: id,
         error: error instanceof Error ? error.message : String(error),
       });
-      const fromDb = await this.getChatsFromMessageStore(id);
-      if (fromDb.length > 0) {
-        return paginate(fromDb, opts.limit, opts.offset);
+      try {
+        const fromDb = await this.getChatsFromMessageStore(id);
+        if (fromDb.length > 0) {
+          return paginate(fromDb, opts.limit, opts.offset);
+        }
+      } catch (dbError) {
+        this.logger.warn(`message-store chat fallback also failed for ${id}`, {
+          sessionId: id,
+          error: dbError instanceof Error ? dbError.message : String(dbError),
+        });
       }
-      throw error;
+
+      // Never rethrow bare Error → Nest would turn it into opaque 500 "Internal server error".
+      // EngineNotReadyError extends ConflictException (HttpException) → 409 with reconnect text.
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new ServiceUnavailableException(
+        error instanceof Error
+          ? `Unable to load chats: ${error.message}`
+          : 'Unable to load chats from WhatsApp. Start the session again.',
+      );
     }
   }
 
