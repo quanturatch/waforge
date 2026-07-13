@@ -372,6 +372,8 @@ export function DashboardCharts() {
                     tickLine={false}
                   />
                   <Tooltip
+                    // Default Recharts bar hover paints a solid white band — hide it.
+                    cursor={{ fill: 'transparent' }}
                     content={props => (
                       <ChartTooltip
                         active={props.active}
@@ -393,6 +395,8 @@ export function DashboardCharts() {
                     fill="url(#gBar)"
                     radius={[0, 6, 6, 0]}
                     maxBarSize={18}
+                    // Slight emphasis on the hovered bar without a background slab.
+                    activeBar={{ fill: 'url(#gBar)', opacity: 1, stroke: '#0cadf3', strokeWidth: 1 }}
                   />
                 </BarChart>
               </ResponsiveContainer>

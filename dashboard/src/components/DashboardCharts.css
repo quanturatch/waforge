@@ -305,6 +305,12 @@
   overflow: hidden;
 }
 
+/* Kill the default solid white hover band on horizontal bar charts */
+.dashboard-charts .chart-top-chats .recharts-tooltip-cursor {
+  fill: transparent !important;
+  stroke: none !important;
+}
+
 .dashboard-charts .chart-top-chats .recharts-cartesian-axis-tick-value,
 .dashboard-charts .top-chat-tick {
   font-size: 11px;
