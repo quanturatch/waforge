@@ -79,6 +79,14 @@ export function wwebjsAckToDeliveryStatus(ack: number): DeliveryStatus {
   return 'pending';
 }
 
+/** True when Puppeteer/CDP reports a dead page (navigated, crashed, or torn down mid-call). */
+export function isDetachedBrowserError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /detached Frame|Target closed|Session closed|Protocol error|Execution context was destroyed|Cannot find context with specified id|Navigating frame was detached/i.test(
+    msg,
+  );
+}
+
 /**
  * Extract call detail from a whatsapp-web.js `call_log` message, or `undefined` for any other type.
  * The public Message wrapper doesn't expose call fields, so we read them off the raw `_data`. An
@@ -1890,7 +1898,26 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   async getChats(): Promise<ChatSummary[]> {
     this.ensureReady();
-    const chats = await this.client!.getChats();
+    let chats: Awaited<ReturnType<NonNullable<typeof this.client>['getChats']>>;
+    try {
+      chats = await this.client!.getChats();
+    } catch (error) {
+      // Puppeteer "detached Frame" / target closed means the Chromium page is dead while we still
+      // thought the session was READY — surfaces as a raw 500 on /chats. Flip to disconnected and
+      // return a typed 409 so the dashboard can prompt reconnect instead of a blank JSON error.
+      if (isDetachedBrowserError(error)) {
+        this.logger.error(
+          'getChats failed: WhatsApp Web browser frame is detached (session lost)',
+          error instanceof Error ? error.stack : String(error),
+        );
+        this.setStatus(EngineStatus.DISCONNECTED);
+        throw new EngineNotReadyError(
+          'WhatsApp browser session lost connection. Open Sessions and Start/Connect the session again.',
+        );
+      }
+      throw error;
+    }
+
     const summaries: ChatSummary[] = [];
     let skipped = 0;
 

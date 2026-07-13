@@ -168,7 +168,23 @@ export function Chats() {
         const sorted = [...data].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setChats(sorted);
       } catch (err) {
-        showErrorToast(t('chats.errors.loadChats'), err instanceof Error ? err.message : undefined);
+        const status = (err as Error & { status?: number })?.status;
+        const msg =
+          err instanceof Error
+            ? err.message
+            : t('chats.errors.loadChatsGeneric', { defaultValue: 'Could not load chats' });
+        // 409 = browser session lost / not ready — guide the user to reconnect instead of raw JSON.
+        if (status === 409) {
+          showErrorToast(
+            t('chats.errors.sessionLostTitle', { defaultValue: 'Session disconnected' }),
+            msg ||
+              t('chats.errors.sessionLostDesc', {
+                defaultValue: 'Open Sessions and Start/Connect this WhatsApp account again.',
+              }),
+          );
+        } else {
+          showErrorToast(t('chats.errors.loadChats'), msg);
+        }
         setChats([]);
       } finally {
         setLoadingChats(false);
