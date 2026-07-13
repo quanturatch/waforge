@@ -155,23 +155,46 @@
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "Overview of your WhatsApp sessions and activity",
-    "stats": {
-      "activeSessions": "Active Sessions",
-      "messagesToday": "Messages Today",
-      "webhooksConfigured": "Webhooks Configured",
-      "apiCalls": "API Calls (24h)",
-      "totalMessages": "Total Messages"
+    "badge": {
+      "online": "{{count}} online"
     },
-    "sessionsOverview": "Sessions Overview",
-    "showingSessions": "Showing {{shown}} of {{total}} sessions",
+    "stats": {
+      "activeSessions": "Connected sessions",
+      "messagesToday": "Messages today",
+      "webhooksConfigured": "Webhooks",
+      "apiCalls": "API Calls (24h)",
+      "totalMessages": "Total messages",
+      "connectedHint": "{{count}} of {{total}} online",
+      "todayHint": "Sent + received today",
+      "webhooksHint": "Event destinations",
+      "totalHint": "All-time traffic"
+    },
+    "quick": {
+      "title": "Quick actions",
+      "subtitle": "Jump to common tasks",
+      "sessionsTitle": "Sessions",
+      "sessionsDesc": "Connect or manage WhatsApp accounts",
+      "sessionsCta": "Manage",
+      "chatsTitle": "Chats",
+      "chatsDesc": "Read and reply to conversations",
+      "chatsCta": "Open",
+      "webhooksTitle": "Webhooks",
+      "webhooksDesc": "Push events to your backend",
+      "webhooksCta": "Configure"
+    },
+    "sessionsOverview": "Your sessions",
+    "showingSessions": "{{shown}} of {{total}} sessions",
+    "manageSessions": "All sessions",
+    "createSession": "Create session",
     "columns": {
+      "session": "Session",
       "sessionId": "Session ID",
-      "phone": "Phone Number",
+      "phone": "Phone",
       "status": "Status",
-      "lastActive": "Last Active",
+      "lastActive": "Last active",
       "actions": "Actions"
     },
-    "noSessions": "No sessions found. Create one to get started.",
+    "noSessions": "No sessions yet. Create one to connect WhatsApp.",
     "view": "View",
     "disconnect": "Disconnect",
     "disconnectConfirmTitle": "Disconnect session?",
@@ -180,19 +203,24 @@
     "errorPrefix": "Error: {{message}}",
     "loadError": "Failed to load data",
     "charts": {
-      "title": "Message Analytics",
+      "title": "Message analytics",
+      "subtitle": "Traffic volume and mix for the selected period",
       "period": {
         "24h": "24h",
         "7d": "7d",
         "30d": "30d"
       },
       "overTime": "Messages over time",
+      "overTimeMeta": "Sent vs received",
       "byType": "Messages by type",
+      "byTypeMeta": "{{count}} total",
       "topChats": "Top chats",
+      "topChatsMeta": "Most active",
       "sent": "Sent",
       "received": "Received",
       "messages": "Messages",
       "empty": "No message activity in this period.",
+      "emptyHint": "Connect a session and exchange a few messages to populate these charts.",
       "error": "Couldn't load message analytics. Check the server logs."
     }
   },
