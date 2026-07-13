@@ -362,9 +362,11 @@ export class PluginsService {
     try {
       raw = await fetchSafeBuffer(url, { maxBytes: CATALOG_MAX_BYTES });
     } catch (error) {
-      throw new BadRequestException(
+      // Soft-fail: catalog is optional UX; do not 400 the dashboard when the remote is down/404.
+      logger.warn(
         `Failed to fetch plugin catalog: ${redactSsrfError(error, logger, 'plugin catalog download')}`,
       );
+      return [];
     }
 
     let entries: CatalogEntry[];
