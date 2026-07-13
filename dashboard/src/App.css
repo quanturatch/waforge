@@ -1,0 +1,194 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+:root {
+  /*
+   * Default palette inspired by Naukri.com brand blues:
+   * #0cadf3 primary CTA sky blue · #56c3e1 soft aqua · #046c9a deep navy
+   * #243c42 body text · #7a8484 secondary · #a7c5ce borders/tints
+   */
+  --primary: #0cadf3;
+  --primary-hover: #046c9a;
+  --primary-soft: rgba(12, 173, 243, 0.14);
+  --primary-mid: #56c3e1;
+  --bg-light: #f0f7fa;
+  --bg-white: #ffffff;
+  --bg-card: #ffffff;
+  --text-primary: #243c42;
+  --text-secondary: #5a6b72;
+  --text-muted: #7a8484;
+  --border: #d0e3ea;
+  --error: #e11d48;
+  --success: #16a34a;
+  --warning: #d97706;
+  --info: #046c9a;
+  --shadow-sm: 0 1px 2px 0 rgb(4 108 154 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(4 108 154 / 0.08), 0 2px 4px -2px rgb(4 108 154 / 0.06);
+  --shadow-lg: 0 10px 15px -3px rgb(4 108 154 / 0.1), 0 4px 6px -4px rgb(4 108 154 / 0.08);
+  --radius: 10px;
+}
+
+[data-palette='waforge'],
+[data-palette='quantura'],
+[data-palette='naukri'] {
+  --primary: #0cadf3;
+  --primary-hover: #046c9a;
+  --primary-soft: rgba(12, 173, 243, 0.14);
+  --primary-mid: #56c3e1;
+  --bg-light: #f0f7fa;
+  --text-primary: #243c42;
+  --text-secondary: #5a6b72;
+  --text-muted: #7a8484;
+  --border: #d0e3ea;
+  --info: #046c9a;
+}
+
+[data-palette='blue'] {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-soft: rgba(37, 99, 235, 0.12);
+}
+
+[data-palette='graphite'] {
+  --primary: #64748b;
+  --primary-hover: #475569;
+  --primary-soft: rgba(100, 116, 139, 0.14);
+}
+
+[data-palette='indigo'] {
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-soft: rgba(79, 70, 229, 0.12);
+}
+
+[data-palette='amber'] {
+  --primary: #d97706;
+  --primary-hover: #b45309;
+  --primary-soft: rgba(217, 119, 6, 0.13);
+}
+
+[data-palette='rose'] {
+  --primary: #e11d48;
+  --primary-hover: #be123c;
+  --primary-soft: rgba(225, 29, 72, 0.12);
+}
+
+[data-palette='teal'] {
+  --primary: #0d9488;
+  --primary-hover: #0f766e;
+  --primary-soft: rgba(13, 148, 136, 0.12);
+}
+
+/* Dark Mode — Naukri-inspired cool navy surfaces */
+[data-theme='dark'] {
+  /* Make native controls (select option popups, scrollbars, date pickers) follow the EXPLICIT
+     app theme, not just the OS preference — otherwise toggling dark while the OS is light left
+     native dropdowns rendered in the light scheme (#249). */
+  color-scheme: dark;
+  --bg-light: #0f1c22;
+  --bg-white: #1a2c34;
+  --bg-card: #1a2c34;
+  --text-primary: #e8f4f8;
+  --text-secondary: #a7c5ce;
+  --text-muted: #7a8484;
+  --border: #2a404a;
+  --info: #56c3e1;
+  --primary-soft: color-mix(in srgb, var(--primary) 18%, transparent);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+}
+
+/* Explicit light toggle: keep native controls light even if the OS prefers dark. */
+[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* System preference dark mode */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    /* Match native controls (e.g. the Login page <select> option popup) to the dark theme.
+       The Login screen never sets data-theme, so it relies solely on this block — without an
+       explicit color-scheme the popup rendered light, leaving the light option text illegible (#249). */
+    color-scheme: dark;
+    --bg-light: #0f1c22;
+    --bg-white: #1a2c34;
+    --bg-card: #1a2c34;
+    --text-primary: #e8f4f8;
+    --text-secondary: #a7c5ce;
+    --text-muted: #7a8484;
+    --border: #2a404a;
+    --info: #56c3e1;
+    --primary-soft: color-mix(in srgb, var(--primary) 18%, transparent);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Plus Jakarta Sans',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-light);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  background: var(--bg-white);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Error banner — shared across pages (moved out of Plugins.css so any page can use it). */
+.error-banner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.error-banner svg {
+  color: var(--error);
+}
+
+.error-banner-text {
+  color: var(--error);
+}
+
+/* yarl theme — match dashboard dark palette. */
+.yarl__container { --yarl__color_backdrop: rgba(0, 0, 0, 0.92); }
+.yarl__button   { --yarl__color_button: rgba(255, 255, 255, 0.9); }

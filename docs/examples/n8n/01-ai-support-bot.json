@@ -1,0 +1,131 @@
+{
+  "name": "Quantura — AI Support Bot",
+  "meta": {
+    "templateCredit": "Quantura",
+    "description": "Inbound WhatsApp message → classify intent → LLM draft or human handoff. Pair with Quantura webhooks (message.received)."
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "quantura-support",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-in",
+      "name": "Quantura Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "quantura-support"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body?.data?.fromMe || $json.data?.fromMe}}",
+              "operation": "notEqual",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "skip-from-me",
+      "name": "Not from me?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json.body?.data || $json.data || $json;\nconst body = String(root.body || '').toLowerCase();\nlet intent = 'general';\nif (/refund|cancel|return/.test(body)) intent = 'billing';\nelse if (/track|order|shipping|delivery/.test(body)) intent = 'orders';\nelse if (/human|agent|support|help me/.test(body)) intent = 'handoff';\nreturn [{ json: { ...root, intent, chatId: root.chatId, sessionId: root.sessionId || $json.sessionId, text: root.body } }];"
+      },
+      "id": "classify",
+      "name": "Classify intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.intent}}",
+              "value2": "handoff"
+            }
+          ]
+        }
+      },
+      "id": "if-handoff",
+      "name": "Needs human?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.QUANTURA_BASE_URL}}/api/sessions/{{$json.sessionId}}/messages/send-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{$env.QUANTURA_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chatId\": \"{{$json.chatId}}\",\n  \"text\": \"Thanks — a teammate will reply shortly.\"\n}",
+        "options": {}
+      },
+      "id": "send-handoff",
+      "name": "Send handoff notice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.QUANTURA_BASE_URL}}/api/sessions/{{$json.sessionId}}/messages/send-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{$env.QUANTURA_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chatId\": \"{{$json.chatId}}\",\n  \"text\": \"Got it (intent: {{$json.intent}}). Enable Quantura AI Auto-Reply or wire your LLM node here for a full answer.\"\n}",
+        "options": {}
+      },
+      "id": "send-bot",
+      "name": "Send bot reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 420]
+    }
+  ],
+  "connections": {
+    "Quantura Webhook": {
+      "main": [[{ "node": "Not from me?", "type": "main", "index": 0 }]]
+    },
+    "Not from me?": {
+      "main": [[{ "node": "Classify intent", "type": "main", "index": 0 }], []]
+    },
+    "Classify intent": {
+      "main": [[{ "node": "Needs human?", "type": "main", "index": 0 }]]
+    },
+    "Needs human?": {
+      "main": [
+        [{ "node": "Send handoff notice", "type": "main", "index": 0 }],
+        [{ "node": "Send bot reply", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

@@ -1,0 +1,84 @@
+{
+  "name": "Quantura — Lead Qualifier",
+  "meta": {
+    "templateCredit": "Quantura",
+    "description": "Capture inbound leads over WhatsApp, score them, push to a CRM webhook, and send a personalised follow-up."
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "quantura-leads",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "wh-leads",
+      "name": "Quantura Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 320],
+      "webhookId": "quantura-leads"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json.body?.data || $json.data || $json;\nconst text = String(root.body || '');\nconst phone = (root.from || root.chatId || '').replace(/\\D/g, '');\nlet score = 10;\nif (/demo|pricing|buy|enterprise|quote/i.test(text)) score += 40;\nif (/budget|asap|urgent/i.test(text)) score += 20;\nif (/student|just looking/i.test(text)) score -= 15;\nconst tier = score >= 50 ? 'hot' : score >= 30 ? 'warm' : 'cold';\nreturn [{ json: { sessionId: root.sessionId, chatId: root.chatId, phone, text, score, tier } }];"
+      },
+      "id": "score",
+      "name": "Score lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CRM_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source\": \"quantura-whatsapp\",\n  \"phone\": \"{{$json.phone}}\",\n  \"message\": {{JSON.stringify($json.text)}},\n  \"score\": {{$json.score}},\n  \"tier\": \"{{$json.tier}}\"\n}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "crm",
+      "name": "Push to CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 320],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.QUANTURA_BASE_URL}}/api/sessions/{{$json.sessionId}}/messages/send-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{$env.QUANTURA_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chatId\": \"{{$json.chatId}}\",\n  \"text\": \"Thanks for reaching out! You're marked as a {{$json.tier}} lead. Our team will follow up with next steps.\"\n}",
+        "options": {}
+      },
+      "id": "reply",
+      "name": "WhatsApp follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 320]
+    }
+  ],
+  "connections": {
+    "Quantura Webhook": {
+      "main": [[{ "node": "Score lead", "type": "main", "index": 0 }]]
+    },
+    "Score lead": {
+      "main": [[{ "node": "Push to CRM", "type": "main", "index": 0 }]]
+    },
+    "Push to CRM": {
+      "main": [[{ "node": "WhatsApp follow-up", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

@@ -1,0 +1,126 @@
+{
+  "name": "Quantura — Appointment Booking",
+  "meta": {
+    "templateCredit": "Quantura",
+    "description": "Detect booking intent on WhatsApp, check availability via HTTP, confirm or offer alternative slots."
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "quantura-booking",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "wh-book",
+      "name": "Quantura Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "webhookId": "quantura-booking"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{($json.body?.data?.body || $json.data?.body || '').toLowerCase()}}",
+              "operation": "regex",
+              "value2": "(book|appointment|schedule|reserve|cita|reserva)"
+            }
+          ]
+        }
+      },
+      "id": "if-book",
+      "name": "Booking intent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.AVAILABILITY_API_URL}}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "availability",
+      "name": "Check availability",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const slots = $json.slots || $json.available || [];\nconst root = $('Quantura Webhook').item.json.body?.data || $('Quantura Webhook').item.json.data || {};\nconst first = slots[0];\nconst ok = Boolean(first);\nconst text = ok\n  ? `You're booked for ${typeof first === 'string' ? first : (first.time || first.start)}. Reply CANCEL to free the slot.`\n  : 'No slots open right now. Reply with a preferred day and we will confirm.';\nreturn [{ json: { sessionId: root.sessionId, chatId: root.chatId, text, ok } }];"
+      },
+      "id": "compose",
+      "name": "Compose confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.QUANTURA_BASE_URL}}/api/sessions/{{$json.sessionId}}/messages/send-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{$env.QUANTURA_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chatId\": \"{{$json.chatId}}\",\n  \"text\": {{JSON.stringify($json.text)}}\n}",
+        "options": {}
+      },
+      "id": "send-confirm",
+      "name": "Send confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1180, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.QUANTURA_BASE_URL}}/api/sessions/{{$json.body?.data?.sessionId || $json.data?.sessionId}}/messages/send-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{$env.QUANTURA_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chatId\": \"{{$json.body?.data?.chatId || $json.data?.chatId}}\",\n  \"text\": \"Thanks for your message. Say 'book' to schedule an appointment.\"\n}",
+        "options": {}
+      },
+      "id": "send-generic",
+      "name": "Generic reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 420]
+    }
+  ],
+  "connections": {
+    "Quantura Webhook": {
+      "main": [[{ "node": "Booking intent?", "type": "main", "index": 0 }]]
+    },
+    "Booking intent?": {
+      "main": [
+        [{ "node": "Check availability", "type": "main", "index": 0 }],
+        [{ "node": "Generic reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check availability": {
+      "main": [[{ "node": "Compose confirmation", "type": "main", "index": 0 }]]
+    },
+    "Compose confirmation": {
+      "main": [[{ "node": "Send confirmation", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

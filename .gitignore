@@ -1,0 +1,116 @@
+# =============================================================================
+# WaForge .gitignore — keep the public repo free of secrets, runtime data, and junk
+# =============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Build / compile output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Testing / coverage
+coverage/
+.nyc_output/
+
+# Environment & secrets (keep templates)
+.env
+.env.*
+!.env.example
+!.env.minimal
+data/.env.generated
+data/.api-key
+**/.api-key
+
+# Runtime data (SQLite, sessions, media, plugins state, logs)
+data/
+media/
+uploads/
+!src/**/media/
+
+# WhatsApp engine local auth/cache
+.wwebjs_auth/
+.wwebjs_cache/
+.baileys_auth/
+.baileys_store/
+
+# Databases & logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS junk
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# Docker local overrides
+.docker/
+docker-compose.override.yml
+
+# Misc temp / backups
+*.bak
+*.tmp
+*.temp
+*.orig
+*.pid
+*.seed
+
+# Generated OpenAPI artifacts (regenerate with npm run openapi:export)
+# Keep openapi.json if you choose to track it; ignore local diffs:
+# openapi.generated.json
+
+# Git worktrees
+.worktrees/
+
+# AI / agent local state (do not ship session junk)
+.playwright-mcp/
+.playwright/
+.remember/
+.agent/
+.claude/
+.cursor/
+.superpowers/
+docs/plans/
+docs/superpowers/
+_docs/
+CLAUDE.md
+# stale single-line resume files
+/grok
+
+# Local screenshot tooling output outside docs (allow docs/screenshots/)
+/screenshots/
+!docs/screenshots/
+!docs/screenshots/**
+
+# Optional local certs / keys
+*.pem
+*.key
+!*.example.key
