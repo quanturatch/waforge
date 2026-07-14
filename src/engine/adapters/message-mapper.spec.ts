@@ -125,9 +125,20 @@ describe('mapWwebjsMessageType (engine type-token -> neutral MessageType boundar
     ['call_log', 'call'],
     ['revoked', 'revoked'],
     ['poll_creation', 'poll'],
+    ['album', 'image'],
+    ['list', 'text'],
+    ['interactive', 'text'],
+    ['reaction', 'emoji'],
+    ['order', 'document'],
     ['e2e_notification', 'unknown'], // any unmapped wwebjs type
   ])('maps wwebjs type %s -> %s', (raw, expected) => {
     expect(mapWwebjsMessageType(raw)).toBe(expected);
+  });
+
+  it('maps gif-flagged video/image to gif', () => {
+    expect(mapWwebjsMessageType('video', true)).toBe('gif');
+    expect(mapWwebjsMessageType('image', true)).toBe('gif');
+    expect(mapWwebjsMessageType('video', false)).toBe('video');
   });
 });
 

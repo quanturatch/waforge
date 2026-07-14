@@ -177,7 +177,6 @@ export function Layout({ onLogout, userRole }: LayoutProps) {
       >
         <Link to="/" className="sidebar-header brand-home" aria-label={t('common.goHome')}>
           <img src="/waforge_logo.jpg" alt={t('common.appName')} className="sidebar-logo" />
-          {!isCollapsed && <span className="brand-name-below">{t('common.appName')}</span>}
         </Link>
 
         {!isMobile && (

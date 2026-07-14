@@ -79,6 +79,14 @@ export function wwebjsAckToDeliveryStatus(ack: number): DeliveryStatus {
   return 'pending';
 }
 
+/** True when Puppeteer/CDP reports a dead page (navigated, crashed, or torn down mid-call). */
+export function isDetachedBrowserError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /detached Frame|Target closed|Session closed|Protocol error|Execution context was destroyed|Cannot find context with specified id|Navigating frame was detached/i.test(
+    msg,
+  );
+}
+
 /**
  * Extract call detail from a whatsapp-web.js `call_log` message, or `undefined` for any other type.
  * The public Message wrapper doesn't expose call fields, so we read them off the raw `_data`. An
@@ -1110,7 +1118,8 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   async getGroups(): Promise<Group[]> {
     this.ensureReady();
-    const chats = await this.client!.getChats();
+    // Same CDP surface as getChats — must use the guarded fetch (detached frame → 409).
+    const chats = await this.fetchClientChats();
 
     // Filter only group chats
     const groups = chats.filter(chat => chat.isGroup);
@@ -1609,8 +1618,25 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   async getChatHistory(chatId: string, limit: number = 50, includeMedia: boolean = false): Promise<IncomingMessage[]> {
     this.ensureReady();
-    const chat = await this.client!.getChatById(chatId);
-    const messages = await chat.fetchMessages({ limit });
+    let chat: Awaited<ReturnType<NonNullable<Client['getChatById']>>>;
+    let messages: Awaited<ReturnType<typeof chat.fetchMessages>>;
+    try {
+      chat = await this.client!.getChatById(chatId);
+      messages = await chat.fetchMessages({ limit });
+    } catch (error) {
+      if (isDetachedBrowserError(error)) {
+        this.logger.error(
+          'getChatHistory failed: WhatsApp Web browser frame is detached (session lost)',
+          error instanceof Error ? error.stack : String(error),
+        );
+        this.setStatus(EngineStatus.DISCONNECTED);
+        throw new EngineNotReadyError(
+          'WhatsApp browser session lost connection. Open Sessions and Start/Connect the session again.',
+        );
+      }
+      // Unknown chat / transient evaluate failure — typed 503 beats Nest's opaque 500 body.
+      throw error;
+    }
     const results: IncomingMessage[] = [];
     for (const msg of messages) {
       // Reuse the shared mapper so history messages carry the same author/contact
@@ -1888,9 +1914,32 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   /* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
 
-  async getChats(): Promise<ChatSummary[]> {
+  /**
+   * Call client.getChats() with recovery for a dead Puppeteer page.
+   * Detached frames used to escape as unhandled 500s on the dashboard Chats page.
+   */
+  private async fetchClientChats(): Promise<Awaited<ReturnType<NonNullable<Client['getChats']>>>> {
     this.ensureReady();
-    const chats = await this.client!.getChats();
+    try {
+      return await this.client!.getChats();
+    } catch (error) {
+      if (isDetachedBrowserError(error)) {
+        this.logger.error(
+          'WhatsApp Web browser frame is detached (session lost)',
+          error instanceof Error ? error.stack : String(error),
+        );
+        // Status change propagates via onStateChanged → session row DISCONNECTED + UI toast path.
+        this.setStatus(EngineStatus.DISCONNECTED);
+        throw new EngineNotReadyError(
+          'WhatsApp browser session lost connection. Open Sessions and Start/Connect the session again.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async getChats(): Promise<ChatSummary[]> {
+    const chats = await this.fetchClientChats();
     const summaries: ChatSummary[] = [];
     let skipped = 0;
 

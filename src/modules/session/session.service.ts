@@ -3,11 +3,14 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  HttpException,
+  ServiceUnavailableException,
   OnModuleDestroy,
   OnModuleInit,
   OnApplicationBootstrap,
   Optional,
 } from '@nestjs/common';
+
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull, DataSource, FindManyOptions } from 'typeorm';
@@ -38,6 +41,7 @@ import {
 import { createLogger } from '../../common/services/logger.service';
 import { ShutdownService } from '../../common/services/shutdown.service';
 import { EventsGateway } from '../events/events.gateway';
+import { isEmojiOnlyBody } from '../../common/utils/message-type-labels';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
 import {
@@ -805,6 +809,10 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
             const chatName = incoming.contact?.pushName ?? incoming.contact?.name ?? undefined;
 
+            // Classify short emoji-only texts for the analytics donut (Text vs Emoji).
+            const persistType =
+              incoming.type === 'text' && isEmojiOnlyBody(incoming.body) ? 'emoji' : incoming.type;
+
             const dbMessage = this.messageRepository.create({
               sessionId: id,
               waMessageId: incoming.id,
@@ -813,7 +821,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
               from: incoming.from,
               to: incoming.to,
               body: incoming.body,
-              type: incoming.type,
+              type: persistType,
               direction: incoming.fromMe ? MessageDirection.OUTGOING : MessageDirection.INCOMING,
               timestamp: incoming.timestamp,
               status: MessageStatus.SENT,
@@ -1543,13 +1551,85 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     const engine = this.engines.get(id);
 
     if (!engine) {
+      // Engine not in memory — still try the local message store so Chats is not empty offline.
+      const fromDb = await this.getChatsFromMessageStore(id);
+      if (fromDb.length > 0) {
+        return paginate(fromDb, opts.limit, opts.offset);
+      }
       throw new BadRequestException('Session is not started');
     }
 
-    // Most-recent first, then bound the response window. Sorting before the cap means a capped
-    // response is the N newest chats (what clients show first) rather than an arbitrary slice.
-    const chats = [...(await engine.getChats())].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    return paginate(chats, opts.limit, opts.offset);
+    try {
+      // Most-recent first, then bound the response window. Sorting before the cap means a capped
+      // response is the N newest chats (what clients show first) rather than an arbitrary slice.
+      const chats = [...(await engine.getChats())].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      return paginate(chats, opts.limit, opts.offset);
+    } catch (error) {
+      // Detached Chromium / engine not ready → fall back to chats derived from persisted messages
+      // so the dashboard Chats page still lists conversations instead of a raw 500 JSON body.
+      this.logger.warn(`engine.getChats failed for ${id}; using message-store fallback`, {
+        sessionId: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        const fromDb = await this.getChatsFromMessageStore(id);
+        if (fromDb.length > 0) {
+          return paginate(fromDb, opts.limit, opts.offset);
+        }
+      } catch (dbError) {
+        this.logger.warn(`message-store chat fallback also failed for ${id}`, {
+          sessionId: id,
+          error: dbError instanceof Error ? dbError.message : String(dbError),
+        });
+      }
+
+      // Never rethrow bare Error → Nest would turn it into opaque 500 "Internal server error".
+      // EngineNotReadyError extends ConflictException (HttpException) → 409 with reconnect text.
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new ServiceUnavailableException(
+        error instanceof Error
+          ? `Unable to load chats: ${error.message}`
+          : 'Unable to load chats from WhatsApp. Start the session again.',
+      );
+    }
+  }
+
+  /**
+   * Build a ChatSummary list from the messages table when the live engine cannot list chats
+   * (browser detached, session not started, etc.).
+   */
+  private async getChatsFromMessageStore(sessionId: string): Promise<ChatSummary[]> {
+    const rows = await this.messageRepository
+      .createQueryBuilder('m')
+      .select('m.chatId', 'chatId')
+      .addSelect('MAX(m.chatName)', 'chatName')
+      .addSelect('MAX(m.timestamp)', 'timestamp')
+      .where('m.sessionId = :sessionId', { sessionId })
+      .andWhere('m.chatId IS NOT NULL')
+      .groupBy('m.chatId')
+      .orderBy('MAX(m.timestamp)', 'DESC')
+      .getRawMany<{ chatId: string; chatName: string | null; timestamp: string | number | null }>();
+
+    return rows
+      .filter(r => !!r.chatId)
+      .map(r => {
+        const chatId = r.chatId;
+        const ts =
+          typeof r.timestamp === 'number'
+            ? r.timestamp
+            : r.timestamp != null
+              ? Number(r.timestamp) || 0
+              : 0;
+        return {
+          id: chatId,
+          name: r.chatName?.trim() || chatId,
+          isGroup: chatId.endsWith('@g.us'),
+          unreadCount: 0,
+          timestamp: ts,
+        } satisfies ChatSummary;
+      });
   }
 
   async sendSeen(id: string, chatId: string): Promise<boolean> {

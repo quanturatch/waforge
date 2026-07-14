@@ -47,7 +47,9 @@ export interface MediaInput {
  */
 export type MessageType =
   | 'text'
+  | 'emoji'
   | 'image'
+  | 'gif'
   | 'video'
   | 'audio'
   | 'voice'

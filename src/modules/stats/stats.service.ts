@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Session, SessionStatus } from '../session/entities/session.entity';
 import { Message, MessageStatus } from '../message/entities/message.entity';
 import { CacheService } from '../../common/cache';
+import { normalizeMessageType } from '../../common/utils/message-type-labels';
 
 /**
  * Null-out chat names that don't help humans (empty, equal to the JID, or just the raw digits).
@@ -182,9 +183,11 @@ export class StatsService {
       .groupBy('m.type')
       .getRawMany<{ type: string; count: string }>();
 
+    // Collapse legacy/engine tokens (chat→text, ptt→voice, …) so the donut shows clean categories.
     const byType: Record<string, number> = {};
     for (const row of byTypeRaw) {
-      byType[row.type || 'unknown'] = parseInt(row.count);
+      const key = normalizeMessageType(row.type);
+      byType[key] = (byType[key] || 0) + parseInt(row.count, 10);
     }
 
     // By session

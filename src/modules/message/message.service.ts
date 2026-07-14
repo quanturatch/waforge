@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, Optional, ServiceUnavailableException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -612,7 +612,21 @@ export class MessageService {
     const engine = this.getEngine(sessionId);
     const ceiling = deep ? MessageService.MAX_DEEP_CHAT_HISTORY_LIMIT : MessageService.MAX_CHAT_HISTORY_LIMIT;
     const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), ceiling) : 50;
-    return engine.getChatHistory(chatId, safeLimit, deep ? false : includeMedia);
+    try {
+      return await engine.getChatHistory(chatId, safeLimit, deep ? false : includeMedia);
+    } catch (error) {
+      // HttpException (e.g. EngineNotReadyError → 409) already has a clear client-facing body.
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      // Bare Puppeteer/engine errors would otherwise become Nest's opaque 500
+      // `{ "statusCode": 500, "message": "Internal server error" }` — map to a readable 503.
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`getChatHistory failed for session=${sessionId} chat=${chatId}: ${detail}`);
+      throw new ServiceUnavailableException(
+        `Unable to load chat history. ${detail.includes('detached') || detail.includes('Target closed') ? 'Reconnect the WhatsApp session and try again.' : 'Try again in a moment.'}`,
+      );
+    }
   }
 
   // ========== Delete Message ==========
